@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chill 3D Room - Animation</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a24; }
+        canvas { display: block; }
+        #info {
+            position: absolute; top: 10px; width: 100%; text-align: center;
+            color: #ffffff; font-family: sans-serif; pointer-events: none; opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Chill Room - Vòng lặp: Gõ phím -> Tắt máy -> Đắp chăn ngủ -> Thức dậy (Dùng chuột xoay/zoom)</div>
+
+    <!-- Import Map cho Three.js chuẩn ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+        // ==========================================
+        // 1. CÀI ĐẶT CƠ BẢN
+        // ==========================================
+        const scene = new THREE.Scene();
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 4.5; 
+        const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+        camera.position.set(10, 10, 10);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // ==========================================
+        // 2. ÁNH SÁNG
+        // ==========================================
+        scene.add(new THREE.AmbientLight(0x404050, 0.8)); // Sáng môi trường
+
+        const windowLight = new THREE.DirectionalLight(0x88bbff, 1.2); // Ánh trăng xanh
+        windowLight.position.set(-6, 5, 2);
+        windowLight.castShadow = true;
+        windowLight.shadow.mapSize.width = 2048;
+        windowLight.shadow.mapSize.height = 2048;
+        windowLight.shadow.bias = -0.001;
+        scene.add(windowLight);
+
+        // ==========================================
+        // 3. VẬT LIỆU (Mềm mại, bo tròn)
+        // ==========================================
+        const matWall = new THREE.MeshStandardMaterial({ color: 0xfffcf2, roughness: 0.9 });
+        const matFloor = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.7 });
+        const matWood = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
+        const matMetal = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.3 });
+        const matWhite = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.9 });
+        const matBlanket = new THREE.MeshStandardMaterial({ color: 0x7ebdc2, roughness: 1.0 }); 
+        const matScreen = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x0f4c75, roughness: 0.1 }); 
+        const matGlass = new THREE.MeshStandardMaterial({ color: 0xbdd5ea, transparent: true, opacity: 0.4 }); 
+        
+        // Vật liệu cho nhân vật
+        const matCharBody = new THREE.MeshStandardMaterial({ color: 0xffd1dc, roughness: 0.4 }); // Hồng pastel
+        const matEye = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+        const roomGroup = new THREE.Group();
+
+        // Hàm tiện ích tạo khối bo tròn
+        function createRoundedBox(w, h, d, radius, material) {
+            const geo = new RoundedBoxGeometry(w, h, d, 4, radius); 
+            const mesh = new THREE.Mesh(geo, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        // ==========================================
+        // 4. XÂY DỰNG CĂN PHÒNG
+        // ==========================================
+        // Sàn & Tường
+        const floor = createRoundedBox(6, 0.2, 6, 0.05, matFloor); floor.position.set(0, -0.1, 0); roomGroup.add(floor);
+        const wallRight = createRoundedBox(6, 4, 0.2, 0.05, matWall); wallRight.position.set(0, 2, -2.9); roomGroup.add(wallRight);
+        
+        const wallLeftBottom = createRoundedBox(0.2, 1.2, 6, 0.02, matWall); wallLeftBottom.position.set(-2.9, 0.6, 0);
+        const wallLeftTop = createRoundedBox(0.2, 1.0, 6, 0.02, matWall); wallLeftTop.position.set(-2.9, 3.5, 0);
+        const wallLeftFront = createRoundedBox(0.2, 1.8, 1.5, 0.02, matWall); wallLeftFront.position.set(-2.9, 2.1, 2.25);
+        const wallLeftBack = createRoundedBox(0.2, 1.8, 1.5, 0.02, matWall); wallLeftBack.position.set(-2.9, 2.1, -2.25);
+        roomGroup.add(wallLeftBottom, wallLeftTop, wallLeftFront, wallLeftBack);
+
+        // Cửa sổ
+        const windowFrame = createRoundedBox(0.25, 1.9, 3.1, 0.02, matWood); windowFrame.position.set(-2.9, 2.1, 0);
+        const windowGlass = createRoundedBox(0.05, 1.8, 3.0, 0.01, matGlass); windowGlass.position.set(-2.9, 2.1, 0);
+        roomGroup.add(windowFrame, windowGlass);
+
+        // Bàn & Ghế
+        const deskGroup = new THREE.Group();
+        const deskTop = createRoundedBox(1.2, 0.08, 2.2, 0.04, matWood); deskTop.position.set(0, 1.2, 0); deskGroup.add(deskTop);
+        const legGeo = new THREE.CylinderGeometry(0.04, 0.03, 1.2, 16);
+        [[-0.5, 1.0], [0.5, 1.0], [-0.5, -1.0], [0.5, -1.0]].forEach(pos => {
+            const leg = new THREE.Mesh(legGeo, matWood); leg.position.set(pos[0], 0.6, pos[1]); leg.castShadow = true; deskGroup.add(leg);
+        });
+        deskGroup.position.set(-2.0, 0, 1.0); roomGroup.add(deskGroup);
+
+        const chairGroup = new THREE.Group();
+        const seat = createRoundedBox(0.7, 0.08, 0.7, 0.04, matWood); seat.position.set(0, 0.6, 0);
+        const backrest = createRoundedBox(0.7, 0.5, 0.08, 0.04, matWood); backrest.position.set(0, 0.9, -0.3);
+        const chairLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 16), matMetal); chairLeg.position.set(0, 0.3, 0);
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16), matMetal); base.position.set(0, 0.025, 0);
+        chairGroup.add(seat, backrest, chairLeg, base);
+        chairGroup.position.set(-1.0, 0, 1.0); chairGroup.rotation.y = -Math.PI / 6; roomGroup.add(chairGroup);
+
+        // Máy tính & Đèn học
+        const monitor = createRoundedBox(0.05, 0.6, 1.0, 0.02, matMetal); monitor.position.set(-2.2, 1.55, 1.0);
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5), matScreen); screen.rotation.y = Math.PI / 2; screen.position.set(-2.17, 1.55, 1.0);
+        const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 16), matMetal); stand.position.set(-2.3, 1.35, 1.0);
+        const standBase = createRoundedBox(0.3, 0.02, 0.4, 0.01, matMetal); standBase.position.set(-2.3, 1.25, 1.0);
+        const keyboard = createRoundedBox(0.2, 0.02, 0.6, 0.01, matWhite); keyboard.position.set(-1.8, 1.25, 1.0);
+        roomGroup.add(monitor, screen, stand, standBase, keyboard);
+
+        const lampGroup = new THREE.Group();
+        const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 32), matMetal);
+        const lampArm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.5, 16), matMetal); lampArm.position.set(0.1, 0.2, 0); lampArm.rotation.z = -Math.PI / 6;
+        const lampHead = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.1, 0.2, 16), matMetal); lampHead.position.set(0.25, 0.4, 0); lampHead.rotation.z = Math.PI / 4;
+        const lightBulb = new THREE.PointLight(0xffddaa, 1, 3); lightBulb.position.set(0.3, 0.35, 0); lightBulb.castShadow = true;
+        lampGroup.add(lampBase, lampArm, lampHead, lightBulb); lampGroup.position.set(-2.3, 1.25, 0.2); roomGroup.add(lampGroup);
+
+        // Giường & Nệm & Gối
+        const bedGroup = new THREE.Group();
+        const bedFrame = createRoundedBox(2.2, 0.3, 3.8, 0.1, matWood); bedFrame.position.set(0, 0.15, 0);
+        const mattress = createRoundedBox(2.0, 0.3, 3.6, 0.15, matWhite); mattress.position.set(0, 0.45, 0);
+        const pillowGeo = new THREE.CapsuleGeometry(0.2, 0.6, 16, 16); const pillow = new THREE.Mesh(pillowGeo, matWhite); pillow.rotation.z = Math.PI / 2; pillow.position.set(0, 0.7, -1.2); pillow.castShadow = true;
+        
+        // CHĂN (Được tách riêng để làm animation đắp chăn)
+        const blanket = createRoundedBox(2.1, 0.15, 2.0, 0.05, matBlanket);
+        blanket.position.set(0, 0.65, 0.8); // Vị trí chăn gấp ở cuối giường
+        
+        bedGroup.add(bedFrame, mattress, pillow, blanket);
+        bedGroup.position.set(1.5, 0, -1.0); 
+        roomGroup.add(bedGroup);
+
+        // ==========================================
+        // 5. TẠO NHÂN VẬT (Chú ma nhỏ / Phi hành gia)
+        // ==========================================
+        const character = new THREE.Group();
+        
+        // Thân hình viên nhộng (Capsule) mềm mại
+        const bodyGeo = new THREE.CapsuleGeometry(0.2, 0.3, 16, 16);
+        const charBody = new THREE.Mesh(bodyGeo, matCharBody);
+        charBody.castShadow = true;
+        
+        // Hai con mắt
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04), matEye); eyeL.position.set(-0.08, 0.2, 0.18);
+        const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.04), matEye); eyeR.position.set(0.08, 0.2, 0.18);
+        
+        // Hai tay nổi bồng bềnh
+        const handL = new THREE.Mesh(new THREE.SphereGeometry(0.06), matCharBody); handL.position.set(-0.25, 0.0, 0.1); handL.castShadow = true;
+        const handR = new THREE.Mesh(new THREE.SphereGeometry(0.06), matCharBody); handR.position.set(0.25, 0.0, 0.1); handR.castShadow = true;
+
+        character.add(charBody, eyeL, eyeR, handL, handR);
+        roomGroup.add(character);
+        scene.add(roomGroup);
+
+        // ==========================================
+        // 6. LOGIC HOẠT ẢNH (KỊCH BẢN)
+        // ==========================================
+        const clock = new THREE.Clock();
+        const CYCLE_TIME = 20; // 1 vòng lặp dài 20 giây
+
+        // Các vị trí quan trọng
+        const posDesk = new THREE.Vector3(-1.0, 0.95, 0.8);
+        const posBed = new THREE.Vector3(1.5, 0.7, -1.0);
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const t = clock.getElapsedTime() % CYCLE_TIME;
+            
+            // a. TRẠNG THÁI 1 (0s - 7s): NGỒI GÕ MÁY TÍNH
+            if (t < 7) {
+                // Di chuyển nhân vật ra ghế
+                character.position.lerp(posDesk, 0.05);
+                character.rotation.y = THREE.MathUtils.lerp(character.rotation.y, -Math.PI / 3, 0.05);
+                character.rotation.x = THREE.MathUtils.lerp(character.rotation.x, 0, 0.1); // Ngồi thẳng
+                
+                // Mở mắt
+                eyeL.scale.y = THREE.MathUtils.lerp(eyeL.scale.y, 1.0, 0.1);
+                eyeR.scale.y = THREE.MathUtils.lerp(eyeR.scale.y, 1.0, 0.1);
+
+                // Hoạt ảnh tay gõ phím (Dùng hàm Sin để tạo chuyển động lên xuống)
+                handL.position.y = Math.sin(t * 20) * 0.05;
+                handR.position.y = Math.cos(t * 20) * 0.05;
+                
+                // Bật màn hình máy tính
+                matScreen.emissiveIntensity = 1.0;
+                lightBulb.intensity = 1.0; // Bật đèn bàn
+
+                // Chăn gấp gọn ở cuối giường
+                blanket.position.z = THREE.MathUtils.lerp(blanket.position.z, 0.8, 0.05);
+                blanket.scale.z = THREE.MathUtils.lerp(blanket.scale.z, 0.5, 0.05);
+            } 
+            
+            // b. TRẠNG THÁI 2 (7s - 10s): DI CHUYỂN RA GIƯỜNG
+            else if (t < 10) {
+                character.position.lerp(posBed, 0.05);
+                character.rotation.y = THREE.MathUtils.lerp(character.rotation.y, Math.PI / 2, 0.1); // Quay mặt ra ngoài
+                
+                // Tắt tay gõ phím
+                handL.position.y = THREE.MathUtils.lerp(handL.position.y, 0, 0.1);
+                handR.position.y = THREE.MathUtils.lerp(handR.position.y, 0, 0.1);
+                
+                // Tắt PC và đèn bàn
+                matScreen.emissiveIntensity = 0.0;
+                lightBulb.intensity = 0.0;
+            } 
+            
+            // c. TRẠNG THÁI 3 (10s - 17s): ĐẮP CHĂN ĐI NGỦ
+            else if (t < 17) {
+                // Nằm xuống (Xoay 90 độ)
+                character.rotation.x = THREE.MathUtils.lerp(character.rotation.x, -Math.PI / 2, 0.1);
+                character.position.y = THREE.MathUtils.lerp(character.position.y, 0.8, 0.1); // Hạ thấp xuống nệm
+                
+                // Nhắm mắt (Ép dẹt scale Y của mắt)
+                eyeL.scale.y = THREE.MathUtils.lerp(eyeL.scale.y, 0.1, 0.1);
+                eyeR.scale.y = THREE.MathUtils.lerp(eyeR.scale.y, 0.1, 0.1);
+
+                // Nhịp thở (Cơ thể phập phồng nhẹ)
+                charBody.scale.y = 1.0 + Math.sin(t * 3) * 0.05;
+
+                // Tự động kéo chăn lên đắp (Dịch chuyển và scale)
+                blanket.position.z = THREE.MathUtils.lerp(blanket.position.z, -0.4, 0.05); // Kéo chăn lên giữa giường
+                blanket.scale.z = THREE.MathUtils.lerp(blanket.scale.z, 1.2, 0.05);        // Trải dài chăn ra
+                blanket.position.y = THREE.MathUtils.lerp(blanket.position.y, 0.75, 0.05); // Chăn phủ cao lên trên người
+            } 
+            
+            // d. TRẠNG THÁI 4 (17s - 20s): THỨC DẬY / QUAY LẠI BÀN
+            else {
+                character.rotation.x = THREE.MathUtils.lerp(character.rotation.x, 0, 0.1); // Ngồi dậy
+                charBody.scale.y = 1.0; // Dừng nhịp thở
+                
+                // Mở mắt
+                eyeL.scale.y = THREE.MathUtils.lerp(eyeL.scale.y, 1.0, 0.1);
+                eyeR.scale.y = THREE.MathUtils.lerp(eyeR.scale.y, 1.0, 0.1);
+
+                // Gấp chăn lại xuống cuối giường
+                blanket.position.z = THREE.MathUtils.lerp(blanket.position.z, 0.8, 0.05);
+                blanket.scale.z = THREE.MathUtils.lerp(blanket.scale.z, 0.5, 0.05);
+                blanket.position.y = THREE.MathUtils.lerp(blanket.position.y, 0.65, 0.05);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // ==========================================
+        // 7. SỰ KIỆN KHI THAY ĐỔI KÍCH THƯỚC MÀN HÌNH
+        // ==========================================
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2 - 0.01; // Không xoay xuống gầm đất
+
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -d * aspect; camera.right = d * aspect;
+            camera.top = d; camera.bottom = -d;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Bắt đầu chạy Animation
+        animate();
+    </script>
+</body>
+</html>
